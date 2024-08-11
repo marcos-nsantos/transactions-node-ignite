@@ -2,36 +2,63 @@ import { FastifyInstance } from "fastify";
 import { knex } from "../database";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
+import { checkSessionIdExists } from "../middlewares/check-session-id-exists";
 
 export async function transactionsRoutes(app: FastifyInstance) {
-  app.get("/", async () => {
-    const transactions = await knex("transactions").select();
-    return { transactions };
-  });
+  app.get(
+    "/",
+    { preHandler: [checkSessionIdExists] },
+    async (request, reply) => {
+      const { sessionId } = request.cookies;
 
-  app.get("/:id", async (request, reply) => {
-    const getTransactionsParamsSchema = z.object({
-      id: z.string().uuid(),
-    });
+      const transactions = await knex("transactions")
+        .where("session_id", sessionId)
+        .select();
 
-    const { id } = getTransactionsParamsSchema.parse(request.params);
+      return { transactions };
+    },
+  );
 
-    const transaction = await knex("transactions").where({ id }).first();
-    if (!transaction) {
-      return reply.status(404).send();
-    }
-    return { transaction };
-  });
+  app.get(
+    "/:id",
+    { preHandler: [checkSessionIdExists] },
+    async (request, reply) => {
+      const getTransactionsParamsSchema = z.object({
+        id: z.string().uuid(),
+      });
 
-  app.get("/summary", async () => {
-    const summary = await knex("transactions")
-      .sum("amount", {
-        as: "amount",
-      })
-      .first();
+      const { id } = getTransactionsParamsSchema.parse(request.params);
 
-    return { summary };
-  });
+      const { sessionId } = request.cookies;
+
+      const transaction = await knex("transactions")
+        .where({
+          session_id: sessionId,
+          id,
+        })
+        .first();
+      if (!transaction) {
+        return reply.status(404).send();
+      }
+
+      return { transaction };
+    },
+  );
+
+  app.get(
+    "/summary",
+    { preHandler: [checkSessionIdExists] },
+    async (request) => {
+      const { sessionId } = request.cookies;
+
+      const summary = await knex("transactions")
+        .where("session_id", sessionId)
+        .sum("amount", { as: "amount" })
+        .first();
+
+      return { summary };
+    },
+  );
 
   app.post("/", async (request, reply) => {
     const createTransactionBodySchema = z.object({
