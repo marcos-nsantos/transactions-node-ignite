@@ -33,6 +33,10 @@ describe("Transactions routes", () => {
 
     const cookies = createTransactionResponse.get("Set-Cookie");
 
+    if (!cookies) {
+      throw new Error("No cookies returned from the transaction creation");
+    }
+
     const listTransactionsResponse = await request(app.server)
       .get("/transactions")
       .set("Cookie", cookies)
