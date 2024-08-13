@@ -67,28 +67,33 @@ export async function transactionsRoutes(app: FastifyInstance) {
       type: z.enum(["credit", "debit"]),
     });
 
-    const { title, amount, type } = createTransactionBodySchema.parse(
-      request.body,
-    );
+    try {
+      const { title, amount, type } = createTransactionBodySchema.parse(
+        request.body,
+      );
 
-    let sessionId = request.cookies.sessionId;
-    if (!sessionId) {
-      sessionId = randomUUID();
-      const sevenDays = 60 * 60 * 24 * 7;
+      let sessionId = request.cookies.sessionId;
+      if (!sessionId) {
+        sessionId = randomUUID();
+        const sevenDays = 60 * 60 * 24 * 7;
 
-      reply.cookie("sessionId", sessionId, {
-        path: "/",
-        maxAge: sevenDays,
+        reply.cookie("sessionId", sessionId, {
+          path: "/",
+          maxAge: sevenDays,
+        });
+      }
+
+      await knex("transactions").insert({
+        id: randomUUID(),
+        title,
+        amount: type === "credit" ? amount : amount * -1,
+        session_id: sessionId,
       });
+
+      return reply.status(201).send();
+    } catch (error) {
+      console.error("Error creating transaction:", error);
+      return reply.status(500).send({ error: "Internal Server Error" });
     }
-
-    await knex("transactions").insert({
-      id: randomUUID(),
-      title,
-      amount: type === "credit" ? amount : amount * -1,
-      session_id: sessionId,
-    });
-
-    return reply.status(201).send();
   });
 }
